@@ -1,16 +1,18 @@
-## Hi there 👋
+# Xiang Hui Li
 
-<!--
-**xiaoshihoukemengle/xiaoshihoukemengle** is a ✨ _special_ ✨ repository because its `README.md` (this file) appears on your GitHub profile.
+Independent Application Security Practitioner. Focused on pre-launch quality assurance and self-owned asset audits.
 
-Here are some ideas to get you started:
+## Focus Areas
 
-- 🔭 I’m currently working on ...
-- 🌱 I’m currently learning ...
-- 👯 I’m looking to collaborate on ...
-- 🤔 I’m looking for help with ...
-- 💬 Ask me about ...
-- 📫 How to reach me: ...
-- 😄 Pronouns: ...
-- ⚡ Fun fact: ...
--->
+- Web application security review
+- Session and account-recovery flow validation
+- Financial ledger reconciliation for consumer platforms
+- Content moderation coverage audits
+
+## Methodology
+
+Sandbox-first, scope-limited, responsible disclosure.
+
+## Contact
+
+qq287424050 [at] gmail [dot] com
