@@ -23,7 +23,7 @@
 cd deploy
 python3 manage.py init --domain chat.test --dev     # 自签证书 + mailpit 收信箱
 docker compose --profile dev up -d
-./tests/run_local.sh                                 # 接口 22 项 + 网页注册 5 项
+./tests/run_local.sh                                 # 接口 24 项 + 网页注册 5 项
 ```
 
 本机浏览器或模拟器要访问 `chat.test`，需在 hosts 里把 `chat.test`、`matrix.chat.test`、`auth.chat.test`、`rtc.chat.test`、`admin.chat.test`、`push.chat.test` 指向本机，并信任 Caddy 的根证书（`docker compose exec caddy cat /data/caddy/pki/authorities/local/root.crt`）。开发环境的验证码邮件在 http://127.0.0.1:8025 查看。

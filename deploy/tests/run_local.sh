@@ -1,5 +1,5 @@
 #!/bin/sh
-# 本地开发环境一键验收：服务端接口 22 项 + 网页注册流程 5 项。
+# 本地开发环境一键验收：服务端接口 24 项 + 网页注册流程 5 项。
 # 前提：python3 manage.py init --domain chat.test --dev && docker compose --profile dev up -d
 set -eu
 cd "$(dirname "$0")/.."

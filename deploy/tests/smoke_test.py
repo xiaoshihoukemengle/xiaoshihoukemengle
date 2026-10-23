@@ -144,6 +144,13 @@ def main():
         assert foci[0]["type"] == "livekit" and foci[0]["livekit_service_url"] == f"https://rtc.{domain}", foci
     _()
 
+    @check("官网静态页（App 登录页链接的 Logo、条款、隐私政策）")
+    def _():
+        for path in ("/logo.png", "/terms", "/privacy", "/copyright"):
+            status, _ = c.request("GET", f"https://{domain}{path}", raw=True)
+            assert status == 200, f"{path} 返回 {status}"
+    _()
+
     @check("客户端接口版本 /versions")
     def _():
         body = expect(*c.request("GET", c.hs("/_matrix/client/versions")))
@@ -163,6 +170,29 @@ def main():
         assert body["issuer"] == f"https://auth.{domain}/", body["issuer"]
         assert body.get("registration_endpoint"), "缺少 registration_endpoint，Element X 无法登录"
         assert "create" in body.get("prompt_values_supported", []), "MAS 未开放注册（prompt=create）"
+    _()
+
+    # 模拟 App 首次登录时的动态客户端注册，回调地址与 clients/*/prepare.py 生成的一致
+    @check("MAS 接受安卓（正式/调试版）和 iOS 的客户端注册")
+    def _():
+        reverse = ".".join(reversed(domain.split(".")))
+        apps = {"安卓正式版": f"{reverse}:/", "安卓调试版": f"{reverse}.debug:/", "iOS": f"{reverse}:/oauth/ios"}
+        for name, redirect in apps.items():
+            metadata = {
+                "application_type": "native",
+                "client_name": "smoke-test",
+                "client_uri": f"https://{domain}",
+                "logo_uri": f"https://{domain}/logo.png",
+                "policy_uri": f"https://{domain}/privacy",
+                "tos_uri": f"https://{domain}/terms",
+                "redirect_uris": [redirect],
+                "grant_types": ["authorization_code", "refresh_token",
+                                "urn:ietf:params:oauth:grant-type:device_code"],
+                "response_types": ["code"],
+                "token_endpoint_auth_method": "none",
+            }
+            status, body = c.request("POST", f"https://auth.{domain}/oauth2/registration", metadata)
+            assert status == 201 and body.get("client_id"), f"{name}（{redirect}）被拒：HTTP {status} {body}"
     _()
 
     print("\n[2] 账号与登录")

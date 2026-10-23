@@ -7,8 +7,8 @@
 | 部分 | 基于 | 目录 |
 | --- | --- | --- |
 | 服务端 | Synapse + MAS + LiveKit + ntfy + Ketesa，Docker Compose 部署 | [deploy/](../deploy/) |
-| 安卓 App | Element X Android 改品牌 | 待加 |
-| iOS App | Element X iOS 改品牌，超级签分发 | 待加 |
+| 安卓 App | Element X Android 改品牌 | [clients/android/](../clients/) |
+| iOS App | Element X iOS 改品牌，超级签分发 | [clients/ios/](../clients/) |
 
 ## 已定的要求
 

@@ -26,8 +26,11 @@
 		rewrite * /server
 		file_server
 	}
+	# 官网静态页：Logo、使用条款、隐私政策（App 登录页会链接到这里），内容在 deploy/site/
 	handle {
-		respond 404
+		root * /srv/site
+		try_files {path} {path}.html
+		file_server
 	}
 }
 

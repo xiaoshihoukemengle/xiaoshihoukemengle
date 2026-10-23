@@ -138,6 +138,7 @@ services:
     volumes:
       - ./config/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - ./config/well-known:/srv/well-known:ro
+      - ./site:/srv/site:ro
       - caddy-data:/data
     networks:
       default:
