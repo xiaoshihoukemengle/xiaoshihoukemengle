@@ -9,4 +9,4 @@ echo "== 运行中的容器"; docker ps --format 'table {{.Names}}\t{{.Image}}\t
 echo "== Docker 网络"; docker network ls 2>&1
 echo "== 反向代理"; for p in nginx caddy httpd apache2 traefik haproxy openresty; do pgrep -a "$p" | head -2; done
 ls /etc/nginx/sites-enabled /etc/nginx/conf.d 2>/dev/null
-echo "== 防火墙"; (ufw status 2>/dev/null; firewall-cmd --list-all 2>/dev/null) | head -30
+echo "== 防火墙"; (ufw status numbered 2>/dev/null; firewall-cmd --list-all 2>/dev/null) | head -30
