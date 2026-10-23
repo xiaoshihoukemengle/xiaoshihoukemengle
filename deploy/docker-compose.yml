@@ -1,0 +1,165 @@
+# 聊天服务端：Synapse + MAS + LiveKit（MatrixRTC）+ 后台 + 推送
+#
+# 组件版本对齐 Element 官方 ESS Community（ess-helm 26.10.2）测过的组合。
+# 先运行 python3 manage.py init 生成 .env 和 config/，再 docker compose up -d。
+
+name: chat
+
+x-restart: &restart
+  restart: unless-stopped
+
+services:
+  postgres:
+    <<: *restart
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:?run python3 manage.py init}
+      SYNAPSE_DB_PASSWORD: ${SYNAPSE_DB_PASSWORD}
+      MAS_DB_PASSWORD: ${MAS_DB_PASSWORD}
+    volumes:
+      - postgres:/var/lib/postgresql/data
+      - ./postgres/init-dbs.sh:/docker-entrypoint-initdb.d/init-dbs.sh:ro
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  valkey:
+    <<: *restart
+    image: valkey/valkey:9.1.2-alpine
+    command: ["valkey-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # 媒体卷首次创建时属主是 root，交给 Synapse 的运行用户 991
+  synapse-init:
+    image: ghcr.io/element-hq/synapse:v1.163.1
+    entrypoint: ["chown", "-R", "991:991", "/data"]
+    volumes:
+      - synapse-media:/data
+
+  synapse:
+    <<: *restart
+    image: ghcr.io/element-hq/synapse:v1.163.1
+    environment:
+      SYNAPSE_CONFIG_PATH: /config/homeserver.yaml
+      UID: "991"
+      GID: "991"
+    volumes:
+      - ./config/synapse:/config:ro
+      - synapse-media:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mas:
+        condition: service_started
+      synapse-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8008/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  mas:
+    <<: *restart
+    image: ghcr.io/element-hq/matrix-authentication-service:1.27.1
+    command: ["server", "--config", "/config/config.yaml"]
+    volumes:
+      - ./config/mas:/config:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  livekit:
+    <<: *restart
+    image: livekit/livekit-server:v1.13.10
+    command: ["--config", "/config/livekit.yaml"]
+    volumes:
+      - ./config/livekit:/config:ro
+    ports:
+      # 媒体流直连端口，必须在防火墙放行
+      - "7881:7881/tcp"
+      - "7882:7882/udp"
+    depends_on:
+      valkey:
+        condition: service_healthy
+
+  lk-jwt:
+    <<: *restart
+    image: ghcr.io/element-hq/lk-jwt-service:0.9.0
+    environment:
+      LIVEKIT_URL: wss://rtc.${DOMAIN}
+      LIVEKIT_KEY: ${LIVEKIT_KEY}
+      LIVEKIT_SECRET: ${LIVEKIT_SECRET}
+      LIVEKIT_FULL_ACCESS_HOMESERVERS: ${DOMAIN}
+      LIVEKIT_CS_API_URL_OVERRIDES: ${DOMAIN}=http://synapse:8008
+      LIVEKIT_AS_REGISTRATION_FILE: /config/registration.yaml
+      LIVEKIT_HS_SERVER_NAME: ${DOMAIN}
+      LIVEKIT_REDIS_URL: redis://valkey:6379/2
+      # 默认监听 IPv6，部分 Docker 环境没开 IPv6 会起不来
+      LIVEKIT_JWT_BIND: 0.0.0.0:8080
+      LIVEKIT_INSECURE_SKIP_VERIFY_TLS: ${LKJWT_SKIP_TLS_VERIFY:-}
+    volumes:
+      - ./config/rtc:/config:ro
+    depends_on:
+      valkey:
+        condition: service_healthy
+
+  ntfy:
+    <<: *restart
+    image: binwiederhier/ntfy:v2.33.0
+    command: ["serve"]
+    volumes:
+      - ./config/ntfy:/etc/ntfy:ro
+      - ntfy-cache:/var/cache/ntfy
+
+  ketesa:
+    <<: *restart
+    image: etkecc/ketesa:v1.5.1
+    environment:
+      SERVER_HOST: 0.0.0.0
+
+  caddy:
+    <<: *restart
+    image: caddy:2.10-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN}
+      CADDY_TLS: ${CADDY_TLS}
+    volumes:
+      - ./config/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./config/well-known:/srv/well-known:ro
+      - ./site:/srv/site:ro
+      - caddy-data:/data
+    networks:
+      default:
+        # 让容器内部也能用公网域名找到 Caddy
+        aliases:
+          - ${DOMAIN}
+          - matrix.${DOMAIN}
+          - auth.${DOMAIN}
+          - rtc.${DOMAIN}
+          - admin.${DOMAIN}
+          - push.${DOMAIN}
+
+  # 本地开发用的收信箱，正式环境换成真实 SMTP（.env 里的 SMTP_*）
+  mailpit:
+    image: axllent/mailpit:v1.32
+    profiles: ["dev"]
+    ports:
+      - "127.0.0.1:8025:8025"
+
+volumes:
+  postgres:
+  synapse-media:
+  ntfy-cache:
+  caddy-data:

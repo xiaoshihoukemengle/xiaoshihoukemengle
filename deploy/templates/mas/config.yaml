@@ -1,0 +1,98 @@
+# MAS（账号认证服务）配置，由 manage.py 从模板生成。
+# 负责注册、登录、邮箱验证、找回密码、设备会话。
+
+http:
+  public_base: https://auth.${DOMAIN}/
+  listeners:
+    - name: web
+      binds:
+        - host: 0.0.0.0
+          port: 8080
+      resources:
+        - name: human
+        - name: discovery
+        - name: oauth
+        - name: compat
+        - name: assets
+        - name: graphql
+          undocumented_oauth2_access: true
+        # 后台（Ketesa）管理账号要用
+        - name: adminapi
+    - name: internal
+      binds:
+        - host: 0.0.0.0
+          port: 8081
+      resources:
+        - name: health
+
+database:
+  host: postgres
+  port: 5432
+  username: mas
+  password: ${MAS_DB_PASSWORD}
+  database: mas
+  ssl_mode: disable
+
+matrix:
+  kind: synapse_modern
+  homeserver: ${DOMAIN}
+  secret: ${MAS_SYNAPSE_SECRET}
+  endpoint: http://synapse:8008/
+
+secrets:
+  encryption: ${MAS_ENCRYPTION_SECRET}
+  keys:
+    - key_file: /config/rsa.pem
+    - key_file: /config/ec256.pem
+
+passwords:
+  enabled: true
+  minimum_complexity: 3
+
+account:
+  # 邮箱 + 用户名 + 密码自助注册，邮箱必须验证
+  password_registration_enabled: true
+  password_registration_email_required: true
+  password_registration_token_required: ${REGISTRATION_TOKEN_REQUIRED}
+  password_recovery_enabled: true
+  login_with_email_allowed: true
+  email_change_allowed: true
+  displayname_change_allowed: true
+  password_change_allowed: true
+  account_deactivation_allowed: true
+
+email:
+  from: '"${APP_NAME}" <${SMTP_FROM}>'
+  reply_to: '"${APP_NAME}" <${SMTP_FROM}>'
+  transport: smtp
+  mode: ${SMTP_MODE}
+  hostname: ${SMTP_HOST}
+  port: ${SMTP_PORT}
+${SMTP_AUTH}
+
+# 按 IP 限流。MAS 默认值（登录 3 次起、注册 20 分钟 1 个）对手机网络不友好：
+# 运营商大内网下很多人共用一个公网 IP，所以放宽 IP 维度，按账号的限制保持默认。
+rate_limiting:
+  login:
+    per_ip:
+      burst: ${LOGIN_PER_IP_BURST}
+      per_second: ${LOGIN_PER_IP_RATE}
+  registration:
+    burst: ${REGISTRATION_PER_IP_BURST}
+    per_second: ${REGISTRATION_PER_IP_RATE}
+
+branding:
+  service_name: ${APP_NAME}
+
+policy:
+  data:
+    admin_clients: []
+    admin_users: []
+    client_registration:
+      allow_host_mismatch: false
+      allow_insecure_uris: false
+
+experimental:
+  session_limit:
+    soft_limit: 50
+    hard_limit: 50

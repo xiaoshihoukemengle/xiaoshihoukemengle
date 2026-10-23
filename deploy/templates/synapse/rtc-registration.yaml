@@ -1,0 +1,14 @@
+# 通话授权服务（lk-jwt-service）以 appservice 身份接入 Synapse，与 ESS 一致
+id: matrix-rtc-authorisation-service
+as_token: "${RTC_AS_TOKEN}"
+hs_token: "${RTC_HS_TOKEN}"
+sender_localpart: _matrix_rtc
+namespaces:
+  users:
+    - exclusive: false
+      regex: "@.*:${DOMAIN_REGEX}"
+url: null
+io.element.msc4502.scopes:
+  - "urn:matrix:client:io.element.msc4502:rooms:is_joined"
+io.element.msc4512.proxy_prefix: rtc/livekit
+io.element.msc4512.proxy_url: "http://lk-jwt:8080"

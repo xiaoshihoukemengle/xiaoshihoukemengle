@@ -1,0 +1,28 @@
+# LiveKit（音视频服务器）配置，参数取自 ESS 的 matrix-rtc sfu 配置
+port: 7880
+log_level: info
+
+rtc:
+  tcp_port: 7881
+  udp_port: 7882
+  # 不用 STUN 探测公网 IP（默认会连谷歌的 STUN 服务器），直接写死
+  use_external_ip: false
+  node_ip: ${LIVEKIT_NODE_IP}
+
+keys:
+  ${LIVEKIT_KEY}: ${LIVEKIT_SECRET}
+
+redis:
+  address: valkey:6379
+  db: 3
+
+room:
+  auto_create: false
+
+turn:
+  enabled: false
+
+webhook:
+  api_key: ${LIVEKIT_KEY}
+  urls:
+    - http://lk-jwt:8080/sfu_webhook

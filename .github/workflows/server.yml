@@ -1,0 +1,37 @@
+# 通过 SSH 操作正式服务器。服务器地址和密码放在仓库的 Secrets 里
+# （SERVER_HOST、SERVER_USER、SERVER_PASSWORD），不进代码。
+# 修改 deploy/remote/TASK 的内容即触发一次，TASK 写要执行的脚本名（inspect）。
+name: 服务器操作
+
+on:
+  push:
+    paths:
+      - deploy/remote/TASK
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: server
+  cancel-in-progress: false
+
+jobs:
+  run:
+    name: 服务器操作
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - name: 执行
+        env:
+          SSHPASS: ${{ secrets.SERVER_PASSWORD }}
+          HOST: ${{ secrets.SERVER_HOST }}
+          USER: ${{ secrets.SERVER_USER }}
+        run: |
+          [ -n "$HOST" ] || { echo "::notice::仓库 Secrets 里还没有 SERVER_HOST，跳过"; exit 0; }
+          sudo apt-get install -y -qq sshpass >/dev/null
+          TASK=$(head -1 deploy/remote/TASK | tr -d '[:space:]')
+          case "$TASK" in inspect) ;; *) echo "未知任务 $TASK"; exit 1;; esac
+          sshpass -e ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 "$USER@$HOST" 'sh -s' < "deploy/remote/$TASK.sh" 2>&1 \
+            | sed "s/$HOST/<服务器IP>/g"

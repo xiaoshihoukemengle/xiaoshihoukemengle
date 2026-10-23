@@ -1,0 +1,137 @@
+# Synapse 主配置，由 manage.py 从模板生成，不要直接改 config/ 里的副本。
+# 参数取自 ESS Community（ess-helm 26.10.2）的 synapse 配置。
+
+server_name: ${DOMAIN}
+public_baseurl: https://matrix.${DOMAIN}/
+signing_key_path: /config/signing.key
+macaroon_secret_key: ${SYNAPSE_MACAROON_SECRET}
+form_secret: ${SYNAPSE_FORM_SECRET}
+registration_shared_secret: ${SYNAPSE_REGISTRATION_SHARED_SECRET}
+log_config: /config/log.yaml
+pid_file: /data/homeserver.pid
+media_store_path: /data/media_store
+report_stats: false
+mau_stats_only: true
+enable_metrics: false
+
+listeners:
+  # 只开客户端接口，不开联邦接口。openid 只提供令牌校验（userinfo），
+  # 通话授权服务靠它确认用户身份。
+  - port: 8008
+    type: http
+    bind_addresses: ["0.0.0.0"]
+    x_forwarded: true
+    tls: false
+    resources:
+      - names: [client, openid]
+        compress: false
+
+database:
+  name: psycopg2
+  args:
+    user: synapse
+    password: ${SYNAPSE_DB_PASSWORD}
+    dbname: synapse
+    host: postgres
+    port: 5432
+    sslmode: disable
+    keepalives: 1
+    keepalives_idle: 10
+    keepalives_interval: 10
+    keepalives_count: 3
+    cp_min: 5
+    cp_max: 10
+
+redis:
+  enabled: true
+  host: valkey
+  port: 6379
+  dbid: 0
+
+# ---- 关闭联邦：只做自己的平台 ----
+federation_domain_whitelist: []
+allow_public_rooms_over_federation: false
+# 默认会去 matrix.org 取密钥，关掉
+trusted_key_servers: []
+suppress_key_server_warning: true
+
+# ---- 账号：全部交给 MAS ----
+enable_registration: false
+password_config:
+  localdb_enabled: false
+  enabled: false
+matrix_authentication_service:
+  enabled: true
+  endpoint: http://mas:8080/
+  secret: ${MAS_SYNAPSE_SECRET}
+  force_http2: true
+
+require_auth_for_profile_requests: true
+
+# 用户名可搜到所有人（类似 TG 按用户名找人）
+user_directory:
+  enabled: true
+  search_all_users: true
+  prefer_local_users: true
+
+# 允许把群公开到群目录
+room_list_publication_rules:
+  - action: allow
+alias_creation_rules:
+  - action: allow
+
+max_upload_size: ${MAX_UPLOAD_SIZE}
+
+# 推送只带“有新消息”，不带消息内容
+push:
+  include_content: false
+
+url_preview_enabled: true
+url_preview_ip_range_blacklist:
+  - '127.0.0.0/8'
+  - '10.0.0.0/8'
+  - '172.16.0.0/12'
+  - '192.168.0.0/16'
+  - '100.64.0.0/10'
+  - '192.0.0.0/24'
+  - '169.254.0.0/16'
+  - '192.88.99.0/24'
+  - '198.18.0.0/15'
+  - '192.0.2.0/24'
+  - '198.51.100.0/24'
+  - '203.0.113.0/24'
+  - '224.0.0.0/4'
+  - '::1/128'
+  - 'fe80::/10'
+  - 'fc00::/7'
+  - '2001:db8::/32'
+  - 'ff00::/8'
+  - 'fec0::/10'
+
+# ---- 音视频（MatrixRTC + LiveKit）----
+matrix_rtc:
+  transports:
+    - type: livekit
+      url: wss://rtc.${DOMAIN}
+      livekit_service_url: https://rtc.${DOMAIN}
+app_service_config_files:
+  - /config/rtc-registration.yaml
+max_event_delay_duration: 24h
+rc_message:
+  per_second: 0.5
+  burst_count: 30
+rc_delayed_event_mgmt:
+  per_second: 1
+  burst_count: 20
+
+experimental_features:
+  msc4028_push_encrypted_events: true
+  msc4452_enabled: true
+  # 扫码登录，需要 MAS
+  msc4108_enabled: true
+  # MatrixRTC 传输发现
+  msc4143_enabled: true
+  msc4222_enabled: true
+  # 通话授权服务查成员关系、代理 rtc/livekit 接口
+  msc4502_enabled: true
+  msc4512_enabled: true
