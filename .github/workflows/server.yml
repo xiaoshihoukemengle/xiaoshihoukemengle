@@ -29,7 +29,7 @@ jobs:
           HOST: ${{ secrets.SERVER_HOST }}
           USER: ${{ secrets.SERVER_USER }}
         run: |
-          [ -n "$HOST" ] || { echo "仓库 Secrets 里还没有 SERVER_HOST"; exit 1; }
+          [ -n "$HOST" ] || { echo "::notice::仓库 Secrets 里还没有 SERVER_HOST，跳过"; exit 0; }
           sudo apt-get install -y -qq sshpass >/dev/null
           TASK=$(head -1 deploy/remote/TASK | tr -d '[:space:]')
           case "$TASK" in inspect) ;; *) echo "未知任务 $TASK"; exit 1;; esac
