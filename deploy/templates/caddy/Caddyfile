@@ -1,0 +1,89 @@
+# 反向代理与 HTTPS。CADDY_TLS=internal 用本地自签证书（开发），
+# 填邮箱则自动申请 Let's Encrypt 证书（正式）。
+(tls_cfg) {
+	tls {$CADDY_TLS}
+}
+
+(cors) {
+	header Access-Control-Allow-Origin "*"
+	header Access-Control-Allow-Methods "GET, HEAD, POST, PUT, DELETE, OPTIONS"
+	header Access-Control-Allow-Headers "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+}
+
+{$DOMAIN} {
+	import tls_cfg
+	handle /.well-known/matrix/client {
+		import cors
+		header Content-Type application/json
+		root * /srv/well-known
+		rewrite * /client
+		file_server
+	}
+	# 只给通话授权服务找到 openid 校验接口用，联邦本身仍是关闭的
+	handle /.well-known/matrix/server {
+		header Content-Type application/json
+		root * /srv/well-known
+		rewrite * /server
+		file_server
+	}
+	handle {
+		respond 404
+	}
+}
+
+matrix.{$DOMAIN} {
+	import tls_cfg
+	# 不开联邦，只放行 openid 令牌校验（通话授权服务要用）
+	handle /_matrix/federation/v1/openid/userinfo {
+		reverse_proxy synapse:8008
+	}
+	handle /_matrix/federation/* {
+		respond 404
+	}
+	handle /_matrix/key/* {
+		respond 404
+	}
+	# 登录、登出、刷新令牌交给 MAS（与 ESS 的路由一致）
+	@mas path_regexp ^/_matrix/client/(api/v1|r0|v3|unstable)/(login|logout|refresh)$
+	handle @mas {
+		reverse_proxy mas:8080
+	}
+	handle /_matrix/* {
+		reverse_proxy synapse:8008
+	}
+	handle /_synapse/client/* {
+		reverse_proxy synapse:8008
+	}
+	handle /_synapse/admin/* {
+		reverse_proxy synapse:8008
+	}
+	handle {
+		respond 404
+	}
+}
+
+auth.{$DOMAIN} {
+	import tls_cfg
+	reverse_proxy mas:8080
+}
+
+rtc.{$DOMAIN} {
+	import tls_cfg
+	@jwt path /sfu/get* /get_token* /delegate_delayed_leave* /healthz
+	handle @jwt {
+		reverse_proxy lk-jwt:8080
+	}
+	handle {
+		reverse_proxy livekit:7880
+	}
+}
+
+admin.{$DOMAIN} {
+	import tls_cfg
+	reverse_proxy ketesa:8080
+}
+
+push.{$DOMAIN} {
+	import tls_cfg
+	reverse_proxy ntfy:80
+}

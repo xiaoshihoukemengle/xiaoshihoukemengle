@@ -1,0 +1,9 @@
+#!/bin/sh
+# 首次初始化时建库：Synapse 要求 C 排序规则
+set -eu
+psql -v ON_ERROR_STOP=1 --username postgres <<SQL
+CREATE ROLE synapse LOGIN PASSWORD '${SYNAPSE_DB_PASSWORD}';
+CREATE DATABASE synapse OWNER synapse ENCODING 'UTF8' LC_COLLATE 'C' LC_CTYPE 'C' TEMPLATE template0;
+CREATE ROLE mas LOGIN PASSWORD '${MAS_DB_PASSWORD}';
+CREATE DATABASE mas OWNER mas ENCODING 'UTF8' TEMPLATE template0;
+SQL
