@@ -33,7 +33,7 @@ jobs:
         run: |
           [ -n "$HOST" ] || { echo "::notice::仓库 Secrets 里还没有 HK177_SSH_HOST，跳过"; exit 0; }
           TASK=$(head -1 deploy/remote/TASK | tr -d '[:space:]')
-          case "$TASK" in inspect|deploy) ;; *) echo "未知任务 $TASK"; exit 1;; esac
+          case "$TASK" in inspect|deploy|logs) ;; *) echo "未知任务 $TASK"; exit 1;; esac
           umask 077
           printf '%s\n' "$KEY" > "$RUNNER_TEMP/key"
           # 敲门：按序敲端口，knockd 随后对本机 IP 开 22，窗口 30 秒，敲完立刻连
