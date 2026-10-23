@@ -57,7 +57,9 @@ jobs:
           java-version: 21
       - uses: gradle/actions/setup-gradle@v5
       - name: 生成源码
-        run: python3 clients/android/prepare.py
+        run: |
+          pip3 install --quiet pillow
+          python3 clients/android/prepare.py
       - name: 编译
         working-directory: clients/android/build/element-x-android
         env:
