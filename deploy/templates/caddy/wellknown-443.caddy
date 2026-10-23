@@ -1,0 +1,15 @@
+
+# 对外端口不是 443 时：通话授权服务按 Matrix 规则先访问 https://域名/.well-known/matrix/server，
+# 默认走 443，所以容器内部再监听一个 443（只在 Docker 内网里，不对外发布）
+{$DOMAIN}:443 {
+	import tls_cfg
+	handle /.well-known/matrix/server {
+		header Content-Type application/json
+		root * /srv/well-known
+		rewrite * /server
+		file_server
+	}
+	handle {
+		respond 404
+	}
+}

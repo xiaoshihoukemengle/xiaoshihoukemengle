@@ -112,6 +112,9 @@ def render(env):
     # Caddyfile 用 Caddy 自己的 {$VAR} 环境变量语法，原样复制
     (CONFIG / "caddy").mkdir(parents=True, exist_ok=True)
     shutil.copy(TEMPLATES / "caddy/Caddyfile", CONFIG / "caddy/Caddyfile")
+    if values["PUBLIC_PORT"] != "443":
+        with open(CONFIG / "caddy/Caddyfile", "a") as f:
+            f.write((TEMPLATES / "caddy/wellknown-443.caddy").read_text())
 
     keys = HERE / "keys"
     shutil.copy(keys / "synapse-signing.key", CONFIG / "synapse/signing.key")
