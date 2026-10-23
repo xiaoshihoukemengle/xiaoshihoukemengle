@@ -33,7 +33,7 @@ jobs:
         run: |
           [ -n "$HOST" ] || { echo "::notice::仓库 Secrets 里还没有 HK177_SSH_HOST，跳过"; exit 0; }
           TASK=$(head -1 deploy/remote/TASK | tr -d '[:space:]')
-          case "$TASK" in inspect|deploy|logs|users) ;; *) echo "未知任务 $TASK"; exit 1;; esac
+          case "$TASK" in inspect|deploy|logs|users|ca) ;; *) echo "未知任务 $TASK"; exit 1;; esac
           umask 077
           printf '%s\n' "$KEY" > "$RUNNER_TEMP/key"
           # 敲门：按序敲端口，knockd 随后对本机 IP 开 22，窗口 30 秒，敲完立刻连
@@ -48,5 +48,14 @@ jobs:
             echo "已上传 deploy/ 到 /opt/chat"
           fi
           knock
-          $SSH "$USER@$HOST" "sh -s -- $HOST" < "deploy/remote/$TASK.sh" 2>&1 | sed "s/$HOST/<服务器IP>/g"
+          $SSH "$USER@$HOST" "sh -s -- $HOST" < "deploy/remote/$TASK.sh" 2>&1 | tee "$RUNNER_TEMP/out.txt" | sed "s/$HOST/<服务器IP>/g"
           rm -f "$RUNNER_TEMP/key"
+          # 根证书是公开信息，另存成附件方便取用（日志里的密钥串会被打码，附件不会）
+          if [ "$TASK" = ca ]; then
+            sed -n '/-----BEGIN CERTIFICATE-----/,/-----END CERTIFICATE-----/p' "$RUNNER_TEMP/out.txt" > ca.pem
+          fi
+      - uses: actions/upload-artifact@v5
+        if: hashFiles('ca.pem') != ''
+        with:
+          name: ca-cert
+          path: ca.pem
