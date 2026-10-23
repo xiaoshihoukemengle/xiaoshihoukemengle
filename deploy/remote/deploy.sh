@@ -34,10 +34,18 @@ fi
 echo "== 拉镜像并启动"
 docker compose pull -q
 docker compose up -d
+# 配置文件是挂载进容器的，重新生成后容器不会自动重读，统一重启本项目的容器（只此一个项目，不涉及其他容器）
+docker compose restart
 echo "== 等待服务就绪"
+sleep 15
 i=0
 until [ "$(docker compose ps --format '{{.Status}}' synapse | grep -c healthy)" = 1 ]; do
   i=$((i+1)); [ $i -gt 60 ] && { docker compose ps; docker compose logs --tail 40 synapse mas; exit 1; }
+  sleep 5
+done
+i=0
+until [ "$(docker compose ps --format '{{.State}}' mas)" = running ]; do
+  i=$((i+1)); [ $i -gt 12 ] && { echo "MAS 起不来："; docker compose logs --tail 30 --no-log-prefix mas; break; }
   sleep 5
 done
 docker compose ps --format 'table {{.Name}}\t{{.Status}}\t{{.Ports}}'
