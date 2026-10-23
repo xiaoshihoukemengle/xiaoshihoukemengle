@@ -1,5 +1,5 @@
 # 通过 SSH 操作正式服务器。服务器地址和密码放在仓库的 Secrets 里
-# （SERVER_HOST、SERVER_USER、SERVER_PASSWORD），不进代码。
+# （HK177_SSH_HOST/PORT/USER/PRIVATE_KEY、HK177_PORT_KNOCK），不进代码。
 # 修改 deploy/remote/TASK 的内容即触发一次，TASK 写要执行的脚本名（inspect）。
 name: 服务器操作
 
@@ -25,13 +25,22 @@ jobs:
       - uses: actions/checkout@v5
       - name: 执行
         env:
-          SSHPASS: ${{ secrets.SERVER_PASSWORD }}
-          HOST: ${{ secrets.SERVER_HOST }}
-          USER: ${{ secrets.SERVER_USER }}
+          HOST: ${{ secrets.HK177_SSH_HOST }}
+          PORT: ${{ secrets.HK177_SSH_PORT }}
+          USER: ${{ secrets.HK177_SSH_USER }}
+          KEY: ${{ secrets.HK177_SSH_PRIVATE_KEY }}
+          KNOCK: ${{ secrets.HK177_PORT_KNOCK }}
         run: |
-          [ -n "$HOST" ] || { echo "::notice::仓库 Secrets 里还没有 SERVER_HOST，跳过"; exit 0; }
-          sudo apt-get install -y -qq sshpass >/dev/null
+          [ -n "$HOST" ] || { echo "::notice::仓库 Secrets 里还没有 HK177_SSH_HOST，跳过"; exit 0; }
           TASK=$(head -1 deploy/remote/TASK | tr -d '[:space:]')
           case "$TASK" in inspect) ;; *) echo "未知任务 $TASK"; exit 1;; esac
-          sshpass -e ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 "$USER@$HOST" 'sh -s' < "deploy/remote/$TASK.sh" 2>&1 \
+          umask 077
+          printf '%s\n' "$KEY" > "$RUNNER_TEMP/key"
+          # 敲门：按序敲端口，knockd 随后对本机 IP 开 22，窗口 30 秒，敲完立刻连
+          PORTS=$(printf '%s' "$KNOCK" | grep -oE '[0-9]+' | tr '\n' ' ')
+          [ -n "$PORTS" ] || PORTS="31011 27417 19283"
+          for p in $PORTS; do nc -z -w1 "$HOST" "$p" >/dev/null 2>&1 || true; sleep 0.5; done
+          ssh -i "$RUNNER_TEMP/key" -p "${PORT:-22}" -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 "$USER@$HOST" 'sh -s' < "deploy/remote/$TASK.sh" 2>&1 \
             | sed "s/$HOST/<服务器IP>/g"
+          rm -f "$RUNNER_TEMP/key"
