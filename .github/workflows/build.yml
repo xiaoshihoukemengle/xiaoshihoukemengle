@@ -91,10 +91,18 @@ jobs:
         working-directory: clients/ios/build/element-x-ios
         run: |
           xcodegen
-          set -o pipefail
           xcodebuild build -project ElementX.xcodeproj -scheme ElementX -configuration Debug \
             -destination 'generic/platform=iOS Simulator' -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO | tail -200
+            CODE_SIGNING_ALLOWED=NO > "$RUNNER_TEMP/xcodebuild.log" 2>&1 && status=0 || status=$?
+          # 日志很长，只打印报错和结尾，完整日志作为附件上传
+          grep -E "error:|BUILD (SUCCEEDED|FAILED)" "$RUNNER_TEMP/xcodebuild.log" | sort -u | head -80 || true
+          tail -30 "$RUNNER_TEMP/xcodebuild.log"
+          exit $status
+      - uses: actions/upload-artifact@v5
+        if: failure()
+        with:
+          name: ios-build-log
+          path: ${{ runner.temp }}/xcodebuild.log
       - name: 打包
         run: |
           cd clients/ios/build/element-x-ios/build/Build/Products/Debug-iphonesimulator
