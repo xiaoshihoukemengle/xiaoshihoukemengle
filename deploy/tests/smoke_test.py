@@ -368,7 +368,7 @@ def main():
         body = expect(*c.request("POST", f"https://rtc.{domain}{PS}/sfu/get", {
             "room": room, "openid_token": openid, "device_id": "SMOKETEST",
         }))
-        assert body["url"] == f"wss://rtc.{domain}", body
+        assert body["url"] == f"wss://rtc.{domain}{PS}", body
         claims = jwt_payload(body["jwt"])
         assert claims["video"]["roomJoin"] is True, claims
         status, raw = c.request("GET", f"https://rtc.{domain}{PS}/rtc/validate?access_token={body['jwt']}", raw=True)
