@@ -139,8 +139,13 @@ def cmd_init(args):
         # 没有域名的展示环境：Caddy 自签证书，通话授权服务回连时跳过校验
         env["CADDY_TLS"] = "internal"
         env["LKJWT_SKIP_TLS_VERIFY"] = "YES_I_KNOW_WHAT_I_AM_DOING"
-        for key in ("SMTP_HOST", "SMTP_PORT", "SMTP_MODE", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM"):
-            env.setdefault(key, "")
+        # 展示环境没有邮件服务：填占位值让 MAS 能启动，验证邮件发不出去，账号用 create-user 创建
+        for key, value in (("SMTP_HOST", "localhost"), ("SMTP_PORT", "25"), ("SMTP_MODE", "plain"),
+                           ("SMTP_FROM", f"noreply@{env['DOMAIN']}")):
+            if not env.get(key):
+                env[key] = value
+        env.setdefault("SMTP_USERNAME", "")
+        env.setdefault("SMTP_PASSWORD", "")
     elif args.dev:
         env["CADDY_TLS"] = "internal"
         env.update(SMTP_HOST="mailpit", SMTP_PORT="1025", SMTP_MODE="plain", SMTP_USERNAME="", SMTP_PASSWORD="")

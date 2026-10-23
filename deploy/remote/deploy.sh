@@ -21,11 +21,8 @@ if ! docker compose -p chat ps -q 2>/dev/null | grep -q .; then
 fi
 
 echo "== 初始化配置"
-if [ -f .env ]; then
-  python3 manage.py render
-else
-  python3 manage.py init --domain "$DOM" --public-port "$PORT" --self-signed --node-ip "$IP" --app-name "${APP_NAME:-Chat}"
-fi
+# init 可重复运行：已有密钥保留，只更新参数并重新生成配置
+python3 manage.py init --domain "$DOM" --public-port "$PORT" --self-signed --node-ip "$IP" --app-name "${APP_NAME:-Chat}"
 
 echo "== 防火墙：新增放行（已有规则不动）"
 if command -v ufw >/dev/null && ufw status | grep -q "Status: active"; then
