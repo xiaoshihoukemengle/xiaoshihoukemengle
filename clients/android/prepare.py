@@ -9,6 +9,7 @@
 """
 
 import argparse
+import os
 import re
 import shutil
 import subprocess
@@ -18,6 +19,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 UPSTREAM_REPO = "https://github.com/element-hq/element-x-android"
 UPSTREAM_TAG = (HERE / "UPSTREAM_TAG").read_text().strip()
+CA_FILE = HERE.parent / "ca.pem"
 SRC = HERE / "build" / "element-x-android"
 
 
@@ -33,6 +35,12 @@ def load_brand():
             sys.exit(f"brand.env 缺少 {key}")
     if not re.fullmatch(r"[0-9A-Fa-f]{8}", brand["BRAND_COLOR"]):
         sys.exit("BRAND_COLOR 要写 8 位 ARGB 十六进制，比如 FF2F6BFF")
+    # 环境变量优先：CI 在构建时按服务器地址填入，地址不进代码仓库
+    for key in ("DOMAIN", "PUBLIC_PORT"):
+        if os.environ.get(key):
+            brand[key] = os.environ[key]
+    port = brand.get("PUBLIC_PORT", "")
+    brand["PORT_SUFFIX"] = "" if port in ("", "443") else ":" + port
     brand["DOMAIN_REVERSED"] = ".".join(reversed(brand["DOMAIN"].split(".")))
     return brand
 
@@ -40,9 +48,10 @@ def load_brand():
 def edits(b):
     """(文件, 原文, 新文) 列表。"""
     d = b["DOMAIN"]
-    site = f"https://{d}"
+    ps = b["PORT_SUFFIX"]
+    site = f"https://{d}{ps}"
     enterprise = "features/enterprise/impl-foss/src/main/kotlin/io/element/android/features/enterprise/impl/DefaultEnterpriseService.kt"
-    return [
+    result = [
         # ---- 应用名、包名、OAuth 客户端信息（MAS 要求这些地址与回调 scheme 同属一个域名）----
         ("plugins/src/main/kotlin/config/BuildTimeConfig.kt",
          'const val APPLICATION_ID = "io.element.android.x"',
@@ -88,11 +97,13 @@ def edits(b):
         # ---- 默认推送网关：自建 ntfy，不用 unifiedpush.org ----
         ("libraries/pushproviders/unifiedpush/src/main/kotlin/io/element/android/libraries/pushproviders/unifiedpush/UnifiedPushConfig.kt",
          'const val DEFAULT_PUSH_GATEWAY_HTTP_URL: String = "https://matrix.gateway.unifiedpush.org/_matrix/push/v1/notify"',
-         f'const val DEFAULT_PUSH_GATEWAY_HTTP_URL: String = "https://push.{d}/_matrix/push/v1/notify"'),
+         f'const val DEFAULT_PUSH_GATEWAY_HTTP_URL: String = "https://push.{d}{ps}/_matrix/push/v1/notify"'),
         # ---- 只连我们自己的服务器（上游给企业版留的扩展点）----
         (enterprise,
          "override fun accountProviderAllowList(): List<AccountProvider> = emptyList()",
-         f'override fun accountProviderAllowList(): List<AccountProvider> = listOf(AccountProvider.Generic(serverName = "{d}"))'),
+         f'override fun accountProviderAllowList(): List<AccountProvider> = listOf(\n'
+         f'        AccountProvider.Managed(serverName = "{d}", baseUrl = "https://matrix.{d}{ps}", canUseServerName = {"true" if not ps else "false"}),\n'
+         f'    )'),
         (enterprise,
          "override fun canConnectToAnyAccountProvider(): Boolean = true",
          "override fun canConnectToAnyAccountProvider(): Boolean = false"),
@@ -108,7 +119,7 @@ def edits(b):
          "    private suspend fun upstreamIsElementProEnforced(serverName: String): Boolean = withContext(dispatchers.io) {"),
         (enterprise,
          "override fun unifiedPushDefaultPushGateway(): String? = null",
-         f'override fun unifiedPushDefaultPushGateway(): String? = "https://push.{d}/_matrix/push/v1/notify"'),
+         f'override fun unifiedPushDefaultPushGateway(): String? = "https://push.{d}{ps}/_matrix/push/v1/notify"'),
         # 不往 Element 的服务器上传问题报告
         (enterprise,
          "        return flowOf(BugReportUrl.UseDefault)",
@@ -120,6 +131,16 @@ def edits(b):
          f'''    override fun brandColorsFlow(sessionId: SessionId?): Flow<Color?> {{
         return flowOf(Color(0x{b["BRAND_COLOR"].upper()}))'''),
     ]
+    if CA_FILE.exists():
+        # 自签证书的根证书打进 App，Rust SDK 通过系统验证器读取网络安全配置里的信任锚
+        result.append((
+            "app/src/main/res/xml/network_security_config.xml",
+            '''        <trust-anchors>
+            <certificates src="system" />''',
+            '''        <trust-anchors>
+            <certificates src="@raw/chat_ca" />
+            <certificates src="system" />'''))
+    return result
 
 
 def apply_edits(root, brand, dry_run):
@@ -136,6 +157,10 @@ def apply_edits(root, brand, dry_run):
             continue
         if not dry_run:
             path.write_text(text.replace(old, new))
+    if CA_FILE.exists() and not dry_run:
+        raw = root / "app/src/main/res/raw"
+        raw.mkdir(parents=True, exist_ok=True)
+        shutil.copy(CA_FILE, raw / "chat_ca.pem")
     return problems
 
 

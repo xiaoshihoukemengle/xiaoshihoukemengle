@@ -9,6 +9,7 @@
 """
 
 import argparse
+import os
 import re
 import shutil
 import subprocess
@@ -33,13 +34,20 @@ def load_brand():
             sys.exit(f"brand.env 缺少 {key}")
     if not re.fullmatch(r"[0-9A-Fa-f]{8}", brand["BRAND_COLOR"]):
         sys.exit("BRAND_COLOR 要写 8 位 ARGB 十六进制")
+    # 环境变量优先：CI 在构建时按服务器地址填入，地址不进代码仓库
+    for key in ("DOMAIN", "PUBLIC_PORT"):
+        if os.environ.get(key):
+            brand[key] = os.environ[key]
+    port = brand.get("PUBLIC_PORT", "")
+    brand["PORT_SUFFIX"] = "" if port in ("", "443") else ":" + port
     brand["DOMAIN_REVERSED"] = ".".join(reversed(brand["DOMAIN"].split(".")))
     return brand
 
 
 def edits(b):
     d = b["DOMAIN"]
-    site = f"https://{d}"
+    ps = b["PORT_SUFFIX"]
+    site = f"https://{d}{ps}"
     settings = "ElementX/Sources/Application/Settings/AppSettings.swift"
     result = [
         # ---- 名称、Bundle ID、App Group ----
@@ -50,7 +58,7 @@ def edits(b):
         # ---- 只连我们自己的服务器 ----
         (settings,
          'private(set) var accountProviders: [AccountProvider] = [.managed(serverName: "matrix.org", baseURL: "https://matrix-client.matrix.org")]',
-         f'private(set) var accountProviders: [AccountProvider] = [.managed(serverName: "{d}", baseURL: "https://matrix.{d}")]'),
+         f'private(set) var accountProviders: [AccountProvider] = [.managed(serverName: "{d}", baseURL: "https://matrix.{d}{ps}")]'),
         (settings, "private(set) var allowOtherAccountProviders = true",
          "private(set) var allowOtherAccountProviders = false"),
         # ---- OAuth 客户端信息，MAS 要求与回调同属一个域名 ----

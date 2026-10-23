@@ -9,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: build-${{ github.ref }}
@@ -57,6 +58,11 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v5
+      - name: 取服务器地址和证书
+        env:
+          SERVER_HOST: ${{ secrets.HK177_SSH_HOST }}
+          GH_TOKEN: ${{ github.token }}
+        run: clients/ci-server-config.sh
       - name: 生成源码
         run: |
           pip3 install --quiet pillow
@@ -86,6 +92,11 @@ jobs:
           xcodebuild -version
       - name: 安装 xcodegen
         run: brew install xcodegen
+      - name: 取服务器地址和证书
+        env:
+          SERVER_HOST: ${{ secrets.HK177_SSH_HOST }}
+          GH_TOKEN: ${{ github.token }}
+        run: clients/ci-server-config.sh
       - name: 生成源码
         run: python3 clients/ios/prepare.py
       - name: 编译
@@ -113,4 +124,7 @@ jobs:
       - uses: actions/upload-artifact@v5
         with:
           name: ios-simulator-app
-          path: ios-simulator-app.zip
+          path: |
+            ios-simulator-app.zip
+            clients/ca.pem
+          if-no-files-found: warn
