@@ -10,6 +10,13 @@
 	tls {$CADDY_TLS}
 }
 
+# 后台（Ketesa 网页和 Synapse 管理接口）只允许 ADMIN_ALLOW 里的来源访问，其余一律 403。
+# 默认放开所有来源（正式环境靠管理员令牌保护）；展示环境由 manage.py 收紧。
+(admin_only) {
+	@outside not remote_ip {$ADMIN_ALLOW}
+	respond @outside 403
+}
+
 (cors) {
 	header Access-Control-Allow-Origin "*"
 	header Access-Control-Allow-Methods "GET, HEAD, POST, PUT, DELETE, OPTIONS"
@@ -64,6 +71,7 @@ matrix.{$DOMAIN} {
 		reverse_proxy synapse:8008
 	}
 	handle /_synapse/admin/* {
+		import admin_only
 		reverse_proxy synapse:8008
 	}
 	handle {
@@ -89,6 +97,7 @@ rtc.{$DOMAIN} {
 
 admin.{$DOMAIN} {
 	import tls_cfg
+	import admin_only
 	reverse_proxy ketesa:8080
 }
 

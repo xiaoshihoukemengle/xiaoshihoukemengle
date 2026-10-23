@@ -89,6 +89,16 @@ def edits(b):
          'let elementCallPosthogSentryDSN = ""'),
         (settings, 'private(set) var analyticsTermsURL: URL? = "https://element.io/cookie-policy"',
          "private(set) var analyticsTermsURL: URL? = nil"),
+        # ---- App 本体的统计、崩溃上报、问题反馈和地图：全部关掉，不连任何第三方 ----
+        # 上游这个文件是占位值（*.localhost），官方构建时才注入真实密钥；这里统一改成 nil
+        *[("Components/Secrets/Secrets.swift", f"    static let {name}: String? = \"{value}\"",
+           f"    static let {name}: String? = nil") for name, value in (
+            ("sentryDSN", "https://username@sentry.localhost/project_id"),
+            ("sentryRustDSN", "https://username@sentry.localhost/project_id"),
+            ("postHogHost", "https://posthog.localhost"),
+            ("postHogAPIKey", "your_key"),
+            ("rageshakeURL", "https://rageshake.localhost/submit"),
+            ("mapLibreAPIKey", "your_key"))],
         # ---- 关联域名改成我们的 ----
         ("ElementX/SupportingFiles/target.yml",
          """        - applinks:element.io

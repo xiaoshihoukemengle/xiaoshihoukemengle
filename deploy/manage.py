@@ -142,6 +142,10 @@ def cmd_init(args):
         # 没有域名的展示环境：Caddy 自签证书，通话授权服务回连时跳过校验
         env["CADDY_TLS"] = "internal"
         env["LKJWT_SKIP_TLS_VERIFY"] = "YES_I_KNOW_WHAT_I_AM_DOING"
+        # 展示环境暴露在公网：关闭开放注册（账号用 create-user 建），后台只允许本机和 Docker 内网访问。
+        # 要从自己的电脑打开后台，把你的 IP 加进 .env 的 ADMIN_ALLOW 后重新部署
+        env["REGISTRATION_TOKEN_REQUIRED"] = "true"
+        env.setdefault("ADMIN_ALLOW", "127.0.0.0/8 172.16.0.0/12")
         # 展示环境没有邮件服务：填占位值让 MAS 能启动，验证邮件发不出去，账号用 create-user 创建
         for key, value in (("SMTP_HOST", "localhost"), ("SMTP_PORT", "25"), ("SMTP_MODE", "plain"),
                            ("SMTP_FROM", f"noreply@{env['DOMAIN']}")):
