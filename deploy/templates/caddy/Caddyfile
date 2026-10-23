@@ -1,3 +1,9 @@
+# 对外 HTTPS 端口默认 443；服务器上 443 被占用时用 PUBLIC_PORT 换端口，此时不做 http 跳转
+{
+	https_port {$PUBLIC_PORT}
+	auto_https disable_redirects
+}
+
 # 反向代理与 HTTPS。CADDY_TLS=internal 用本地自签证书（开发），
 # 填邮箱则自动申请 Let's Encrypt 证书（正式）。
 (tls_cfg) {

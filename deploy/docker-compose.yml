@@ -94,7 +94,7 @@ services:
     <<: *restart
     image: ghcr.io/element-hq/lk-jwt-service:0.9.0
     environment:
-      LIVEKIT_URL: wss://rtc.${DOMAIN}
+      LIVEKIT_URL: wss://rtc.${DOMAIN}${PORT_SUFFIX:-}
       LIVEKIT_KEY: ${LIVEKIT_KEY}
       LIVEKIT_SECRET: ${LIVEKIT_SECRET}
       LIVEKIT_FULL_ACCESS_HOMESERVERS: ${DOMAIN}
@@ -129,10 +129,11 @@ services:
     <<: *restart
     image: caddy:2.10-alpine
     ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
+      - "${HTTP_PUBLISH:-80:80}"
+      - "${PUBLIC_PORT:-443}:${PUBLIC_PORT:-443}"
+      - "${PUBLIC_PORT:-443}:${PUBLIC_PORT:-443}/udp"
     environment:
+      PUBLIC_PORT: ${PUBLIC_PORT:-443}
       DOMAIN: ${DOMAIN}
       CADDY_TLS: ${CADDY_TLS}
     volumes:

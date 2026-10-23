@@ -24,6 +24,7 @@ from pathlib import Path
 DEPLOY = Path(__file__).resolve().parent.parent
 
 results = []
+PS = ""  # 非 443 端口时形如 ":9443"，main() 里按 .env 设置
 
 
 def check(name):
@@ -73,7 +74,7 @@ class Client:
             return status, {"_raw": payload[:200].decode(errors="replace")}
 
     def hs(self, path):
-        return f"https://matrix.{self.domain}{path}"
+        return f"https://matrix.{self.domain}{PS}{path}"
 
 
 def expect(status, body, want=200):
@@ -113,6 +114,8 @@ def main():
 
     env = read_env()
     domain = args.domain or env["DOMAIN"]
+    global PS
+    PS = env.get("PORT_SUFFIX", "")
 
     if args.resolve:
         real = socket.getaddrinfo
@@ -138,16 +141,16 @@ def main():
 
     @check("well-known 指向 matrix 子域名并声明 LiveKit 通话")
     def _():
-        body = expect(*c.request("GET", f"https://{domain}/.well-known/matrix/client"))
-        assert body["m.homeserver"]["base_url"] == f"https://matrix.{domain}", body
+        body = expect(*c.request("GET", f"https://{domain}{PS}/.well-known/matrix/client"))
+        assert body["m.homeserver"]["base_url"] == f"https://matrix.{domain}{PS}", body
         foci = body["org.matrix.msc4143.rtc_foci"]
-        assert foci[0]["type"] == "livekit" and foci[0]["livekit_service_url"] == f"https://rtc.{domain}", foci
+        assert foci[0]["type"] == "livekit" and foci[0]["livekit_service_url"] == f"https://rtc.{domain}{PS}", foci
     _()
 
     @check("官网静态页（App 登录页链接的 Logo、条款、隐私政策）")
     def _():
         for path in ("/logo.png", "/terms", "/privacy", "/copyright"):
-            status, _ = c.request("GET", f"https://{domain}{path}", raw=True)
+            status, _ = c.request("GET", f"https://{domain}{PS}{path}", raw=True)
             assert status == 200, f"{path} 返回 {status}"
     _()
 
@@ -167,7 +170,7 @@ def main():
     @check("账号由 MAS 接管（auth_metadata + 动态注册客户端）")
     def _():
         body = expect(*c.request("GET", c.hs("/_matrix/client/v1/auth_metadata")))
-        assert body["issuer"] == f"https://auth.{domain}/", body["issuer"]
+        assert body["issuer"] == f"https://auth.{domain}{PS}/", body["issuer"]
         assert body.get("registration_endpoint"), "缺少 registration_endpoint，Element X 无法登录"
         assert "create" in body.get("prompt_values_supported", []), "MAS 未开放注册（prompt=create）"
     _()
@@ -181,17 +184,17 @@ def main():
             metadata = {
                 "application_type": "native",
                 "client_name": "smoke-test",
-                "client_uri": f"https://{domain}",
-                "logo_uri": f"https://{domain}/logo.png",
-                "policy_uri": f"https://{domain}/privacy",
-                "tos_uri": f"https://{domain}/terms",
+                "client_uri": f"https://{domain}{PS}",
+                "logo_uri": f"https://{domain}{PS}/logo.png",
+                "policy_uri": f"https://{domain}{PS}/privacy",
+                "tos_uri": f"https://{domain}{PS}/terms",
                 "redirect_uris": [redirect],
                 "grant_types": ["authorization_code", "refresh_token",
                                 "urn:ietf:params:oauth:grant-type:device_code"],
                 "response_types": ["code"],
                 "token_endpoint_auth_method": "none",
             }
-            status, body = c.request("POST", f"https://auth.{domain}/oauth2/registration", metadata)
+            status, body = c.request("POST", f"https://auth.{domain}{PS}/oauth2/registration", metadata)
             assert status == 201 and body.get("client_id"), f"{name}（{redirect}）被拒：HTTP {status} {body}"
     _()
 
@@ -353,7 +356,7 @@ def main():
     def _():
         body = expect(*c.request("GET", c.hs("/_matrix/client/unstable/org.matrix.msc4143/rtc/transports"), token=ta))
         t = body["rtc_transports"][0]
-        assert t["type"] == "livekit" and t["livekit_service_url"] == f"https://rtc.{domain}", body
+        assert t["type"] == "livekit" and t["livekit_service_url"] == f"https://rtc.{domain}{PS}", body
     _()
 
     @check("用 OpenID 换通话令牌，LiveKit 接受该令牌")
@@ -362,13 +365,13 @@ def main():
         assert room, "缺少私聊房间"
         openid = expect(*c.request("POST", c.hs(f"/_matrix/client/v3/user/{urllib.parse.quote(uid_a)}/openid/request_token"),
                                    {}, token=ta))
-        body = expect(*c.request("POST", f"https://rtc.{domain}/sfu/get", {
+        body = expect(*c.request("POST", f"https://rtc.{domain}{PS}/sfu/get", {
             "room": room, "openid_token": openid, "device_id": "SMOKETEST",
         }))
         assert body["url"] == f"wss://rtc.{domain}", body
         claims = jwt_payload(body["jwt"])
         assert claims["video"]["roomJoin"] is True, claims
-        status, raw = c.request("GET", f"https://rtc.{domain}/rtc/validate?access_token={body['jwt']}", raw=True)
+        status, raw = c.request("GET", f"https://rtc.{domain}{PS}/rtc/validate?access_token={body['jwt']}", raw=True)
         assert status == 200, f"LiveKit 校验返回 {status}: {raw[:200]!r}"
     _()
 
@@ -381,7 +384,7 @@ def main():
         }))["access_token"]
         openid = expect(*c.request("POST", c.hs(f"/_matrix/client/v3/user/{urllib.parse.quote(f'@{outsider}:{domain}')}/openid/request_token"),
                                    {}, token=tok))
-        status, body = c.request("POST", f"https://rtc.{domain}/sfu/get", {
+        status, body = c.request("POST", f"https://rtc.{domain}{PS}/sfu/get", {
             "room": dm["room"], "openid_token": openid, "device_id": "EVE",
         })
         assert status in (401, 403), f"应拒绝，实际 HTTP {status}: {body}"
@@ -391,9 +394,9 @@ def main():
 
     @check("ntfy 推送服务在线，并作为 UnifiedPush 的 Matrix 网关")
     def _():
-        body = expect(*c.request("GET", f"https://push.{domain}/v1/health"))
+        body = expect(*c.request("GET", f"https://push.{domain}{PS}/v1/health"))
         assert body.get("healthy") is True, body
-        body = expect(*c.request("GET", f"https://push.{domain}/_matrix/push/v1/notify"))
+        body = expect(*c.request("GET", f"https://push.{domain}{PS}/_matrix/push/v1/notify"))
         assert body == {"unifiedpush": {"gateway": "matrix"}}, body
     _()
 
@@ -412,13 +415,13 @@ def main():
 
     @check("MAS 管理接口已开放（后台管理账号用）")
     def _():
-        status, body = c.request("GET", f"https://auth.{domain}/api/admin/v1/users")
+        status, body = c.request("GET", f"https://auth.{domain}{PS}/api/admin/v1/users")
         assert status in (400, 401) and "authorization" in json.dumps(body).lower(), f"HTTP {status}: {body}"
     _()
 
     @check("后台网页可打开")
     def _():
-        status, html = c.request("GET", f"https://admin.{domain}/", raw=True)
+        status, html = c.request("GET", f"https://admin.{domain}{PS}/", raw=True)
         assert status == 200 and b"<html" in html.lower(), status
     _()
 

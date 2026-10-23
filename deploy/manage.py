@@ -93,6 +93,8 @@ def generate_keys():
 
 def render(env):
     values = dict(env)
+    values.setdefault("PUBLIC_PORT", "443")
+    values["PORT_SUFFIX"] = "" if values["PUBLIC_PORT"] == "443" else ":" + values["PUBLIC_PORT"]
     values["DOMAIN_REGEX"] = re.escape(env["DOMAIN"]).replace("\\", "\\\\")
     if env.get("SMTP_USERNAME"):
         values["SMTP_AUTH"] = f"  username: {env['SMTP_USERNAME']}\n  password: {env['SMTP_PASSWORD']}"
@@ -129,7 +131,17 @@ def cmd_init(args):
     env.setdefault("APP_NAME", args.app_name)
     if args.app_name != "Chat":
         env["APP_NAME"] = args.app_name
-    if args.dev:
+    env["PUBLIC_PORT"] = args.public_port or env.get("PUBLIC_PORT") or "443"
+    env["PORT_SUFFIX"] = "" if env["PUBLIC_PORT"] == "443" else ":" + env["PUBLIC_PORT"]
+    if args.public_port and args.public_port != "443":
+        env["HTTP_PUBLISH"] = "127.0.0.1:18081:80"  # 不占用 80，也不对外开放
+    if args.self_signed:
+        # 没有域名的展示环境：Caddy 自签证书，通话授权服务回连时跳过校验
+        env["CADDY_TLS"] = "internal"
+        env["LKJWT_SKIP_TLS_VERIFY"] = "YES_I_KNOW_WHAT_I_AM_DOING"
+        for key in ("SMTP_HOST", "SMTP_PORT", "SMTP_MODE", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM"):
+            env.setdefault(key, "")
+    elif args.dev:
         env["CADDY_TLS"] = "internal"
         env.update(SMTP_HOST="mailpit", SMTP_PORT="1025", SMTP_MODE="plain", SMTP_USERNAME="", SMTP_PASSWORD="")
         env.setdefault("SMTP_FROM", f"noreply@{env['DOMAIN']}")
@@ -193,6 +205,8 @@ def main():
     p.add_argument("--app-name", default="Chat")
     p.add_argument("--node-ip", help="服务器公网 IP（LiveKit 媒体流）")
     p.add_argument("--acme-email", help="Let's Encrypt 证书联系邮箱（正式环境）")
+    p.add_argument("--public-port", help="对外 HTTPS 端口，默认 443；443 被占用时换一个")
+    p.add_argument("--self-signed", action="store_true", help="用 Caddy 自签证书（没有域名的展示环境）")
     p.add_argument("--dev", action="store_true", help="本地开发：自签证书 + mailpit")
     p.add_argument("--force", action="store_true", help="重新生成所有密钥（会让已有数据失效）")
     p.set_defaults(func=cmd_init)

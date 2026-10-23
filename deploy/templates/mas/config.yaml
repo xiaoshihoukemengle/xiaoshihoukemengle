@@ -2,7 +2,7 @@
 # 负责注册、登录、邮箱验证、找回密码、设备会话。
 
 http:
-  public_base: https://auth.${DOMAIN}/
+  public_base: https://auth.${DOMAIN}${PORT_SUFFIX}/
   listeners:
     - name: web
       binds:

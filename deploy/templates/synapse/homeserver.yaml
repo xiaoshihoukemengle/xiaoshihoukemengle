@@ -2,7 +2,7 @@
 # 参数取自 ESS Community（ess-helm 26.10.2）的 synapse 配置。
 
 server_name: ${DOMAIN}
-public_baseurl: https://matrix.${DOMAIN}/
+public_baseurl: https://matrix.${DOMAIN}${PORT_SUFFIX}/
 signing_key_path: /config/signing.key
 macaroon_secret_key: ${SYNAPSE_MACAROON_SECRET}
 form_secret: ${SYNAPSE_FORM_SECRET}
@@ -112,8 +112,8 @@ url_preview_ip_range_blacklist:
 matrix_rtc:
   transports:
     - type: livekit
-      url: wss://rtc.${DOMAIN}
-      livekit_service_url: https://rtc.${DOMAIN}
+      url: wss://rtc.${DOMAIN}${PORT_SUFFIX}
+      livekit_service_url: https://rtc.${DOMAIN}${PORT_SUFFIX}
 app_service_config_files:
   - /config/rtc-registration.yaml
 max_event_delay_duration: 24h

@@ -33,14 +33,20 @@ jobs:
         run: |
           [ -n "$HOST" ] || { echo "::notice::仓库 Secrets 里还没有 HK177_SSH_HOST，跳过"; exit 0; }
           TASK=$(head -1 deploy/remote/TASK | tr -d '[:space:]')
-          case "$TASK" in inspect) ;; *) echo "未知任务 $TASK"; exit 1;; esac
+          case "$TASK" in inspect|deploy) ;; *) echo "未知任务 $TASK"; exit 1;; esac
           umask 077
           printf '%s\n' "$KEY" > "$RUNNER_TEMP/key"
           # 敲门：按序敲端口，knockd 随后对本机 IP 开 22，窗口 30 秒，敲完立刻连
           PORTS=$(printf '%s' "$KNOCK" | grep -oE '[0-9]+' | tr '\n' ' ')
           [ -n "$PORTS" ] || PORTS="31011 27417 19283"
-          for p in $PORTS; do nc -z -w1 "$HOST" "$p" >/dev/null 2>&1 || true; sleep 0.5; done
-          ssh -i "$RUNNER_TEMP/key" -p "${PORT:-22}" -o IdentitiesOnly=yes -o BatchMode=yes \
-            -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 "$USER@$HOST" 'sh -s' < "deploy/remote/$TASK.sh" 2>&1 \
-            | sed "s/$HOST/<服务器IP>/g"
+          knock() { for p in $PORTS; do nc -z -w1 "$HOST" "$p" >/dev/null 2>&1 || true; sleep 0.5; done; }
+          SSH="ssh -i $RUNNER_TEMP/key -p ${PORT:-22} -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20"
+          if [ "$TASK" = deploy ]; then
+            knock
+            tar czf - -C deploy --exclude=node_modules --exclude=.env --exclude=keys --exclude=config . \
+              | $SSH "$USER@$HOST" 'mkdir -p /opt/chat && tar xzf - -C /opt/chat'
+            echo "已上传 deploy/ 到 /opt/chat"
+          fi
+          knock
+          $SSH "$USER@$HOST" "sh -s -- $HOST" < "deploy/remote/$TASK.sh" 2>&1 | sed "s/$HOST/<服务器IP>/g"
           rm -f "$RUNNER_TEMP/key"

@@ -1,5 +1,5 @@
 # ntfy：安卓自建推送（UnifiedPush）。不设置 upstream-base-url，不经过 ntfy.sh。
-base-url: https://push.${DOMAIN}
+base-url: https://push.${DOMAIN}${PORT_SUFFIX}
 listen-http: ":80"
 behind-proxy: true
 cache-file: /var/cache/ntfy/cache.db

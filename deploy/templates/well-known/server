@@ -1,1 +1,1 @@
-{"m.server": "matrix.${DOMAIN}:443"}
+{"m.server": "matrix.${DOMAIN}:${PUBLIC_PORT}"}
